@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1.0"/>
+  <title>タイヤ点検アプリ V9K</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="wrap" id="mainWrap">
+    <form id="form" class="card" onsubmit="return false;">
+      <div class="section-head">
+        <p class="title">車両情報</p>
+        <div class="app-info">タイヤ点検 <span class="ver-text">V9K</span></div>
+      </div>
+      <div class="veh-rows">
+        <div><label>ステーション名 <input type="text" name="station" required></label></div>
+        <div class="veh-row2">
+          <div><label>車種 <input type="text" name="model" required></label></div>
+          <div><label>フルナンバー <input type="text" name="plate_full" required></label></div>
+        </div>
+        <div class="std-row">
+          <div><label>規定圧（前）kPa <span class="hint">任意</span><input name="std_f" id="std_f" inputmode="none" maxlength="3"></label></div>
+          <div><label>規定圧（後）kPa <span class="hint">任意</span><input name="std_r" id="std_r" inputmode="none" maxlength="3"></label></div>
+        </div>
+      </div>
+
+      <p class="title">タイヤ別入力</p>
+      <div class="tire-list">
+        <div class="tire-row">
+          <div class="inline">
+            <div class="cap">残溝<span class="prev-val" data-for="tread_rf"></span></div>
+            <input id="tread_rf" inputmode="none">
+          </div>
+          <div class="inline">
+            <div class="cap">空気圧<span class="prev-val" data-for="pre_rf"></span></div>
+            <input id="pre_rf" inputmode="none" maxlength="3">
+          </div>
+          <div class="inline">
+            <div class="cap">製造<span class="prev-val" data-for="dot_rf"></span></div>
+            <input id="dot_rf" inputmode="none" maxlength="4">
+          </div>
+          <div class="lab">RF</div>
+        </div>
+        <div class="tire-row">
+          <div class="inline">
+            <div class="cap">残溝<span class="prev-val" data-for="tread_lf"></span></div>
+            <input id="tread_lf" inputmode="none">
+          </div>
+          <div class="inline">
+            <div class="cap">空気圧<span class="prev-val" data-for="pre_lf"></span></div>
+            <input id="pre_lf" inputmode="none" maxlength="3">
+          </div>
+          <div class="inline">
+            <div class="cap">製造<span class="prev-val" data-for="dot_lf"></span></div>
+            <input id="dot_lf" inputmode="none" maxlength="4">
+          </div>
+          <div class="lab">LF</div>
+        </div>
+        <div class="tire-row">
+          <div class="inline">
+            <div class="cap">残溝<span class="prev-val" data-for="tread_lr"></span></div>
+            <input id="tread_lr" inputmode="none">
+          </div>
+          <div class="inline">
+            <div class="cap">空気圧<span class="prev-val" data-for="pre_lr"></span></div>
+            <input id="pre_lr" inputmode="none" maxlength="3">
+          </div>
+          <div class="inline">
+            <div class="cap">製造<span class="prev-val" data-for="dot_lr"></span></div>
+            <input id="dot_lr" inputmode="none" maxlength="4">
+          </div>
+          <div class="lab">LR</div>
+        </div>
+        <div class="tire-row">
+          <div class="inline">
+            <div class="cap">残溝<span class="prev-val" data-for="tread_rr"></span></div>
+            <input id="tread_rr" inputmode="none">
+          </div>
+          <div class="inline">
+            <div class="cap">空気圧<span class="prev-val" data-for="pre_rr"></span></div>
+            <input id="pre_rr" inputmode="none" maxlength="3">
+          </div>
+          <div class="inline">
+            <div class="cap">製造<span class="prev-val" data-for="dot_rr"></span></div>
+            <input id="dot_rr" inputmode="none" maxlength="4">
+          </div>
+          <div class="lab">RR</div>
+        </div>
+      </div>
+
+      <div class="foot section">
+        <button id="submitBtn" class="btn primary" type="submit">保存 → 結果表示</button>
+      </div>
+    </form>
+    <div class="card" id="resultCard" style="display:none;">
+      <p class="title">結果</p>
+      <div class="mono" id="res_header"></div>
+      <div class="mono" id="res_lines"></div>
+      <div class="foot section"><button class="btn" id="backBtn" type="button">入力に戻る</button></div>
+    </div>
+  </div>
+
+  <div id="customKeypad" class="keypad-container">
+    <div class="keypad-grid">
+      <button type="button" class="key" data-val="1">1</button>
+      <button type="button" class="key" data-val="2">2</button>
+      <button type="button" class="key" data-val="3">3</button>
+      <button type="button" class="key" data-val="4">4</button>
+      <button type="button" class="key" data-val="5">5</button>
+      <button type="button" class="key" data-val="6">6</button>
+      <button type="button" class="key" data-val="7">7</button>
+      <button type="button" class="key" data-val="8">8</button>
+      <button type="button" class="key" data-val="9">9</button>
+      <button type="button" class="key btn-close" id="keyClose">✔</button>
+      <button type="button" class="key" data-val="0">0</button>
+      <button type="button" class="key btn-bs" data-val="bs">⌫</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script>
+    window.SHEETS_URL = "https://script.google.com/macros/s/AKfycbyo2U1_TBxvzhJL50GHY8S0NeT1k0kueWb4tI1q2Oaw87NuGXqwjO7PWyCDdqFNZTdz/exec";
+    window.SHEETS_KEY = "tl1";
+  </script>
+  <script src="app.js" defer></script>
+</body>
+</html>

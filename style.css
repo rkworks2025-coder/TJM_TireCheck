@@ -1,0 +1,106 @@
+:root{ --bg:#111; --fg:#eee; --muted:#9aa; --card:#1a1a1a; --brand:#ff8c00; --kb-bg:#252525; }
+*{ box-sizing:border-box; }
+body{ margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; overflow-x: hidden; }
+.wrap{ padding:8px; max-width:740px; margin:0 auto; transition: transform 0.3s ease-out; }
+
+.card{ background:var(--card); border-radius:12px; padding:12px; }
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.section-head .title { margin: 0; }
+.app-info {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: bold;
+}
+.ver-text {
+  display: inline-block;
+  background: #222;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  margin-left: 4px;
+  border: 1px solid #333;
+}
+
+.title{ margin:8px 0 10px; font-weight:700; color:#fff; }
+.veh-row2{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.std-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px; }
+label{ display:block; font-size:12px; color:var(--muted); }
+input{ width:100%; padding:10px 12px; margin-top:4px; border-radius:10px; border:1px solid #333; background:#121212; color:#fff; font-size:16px; -webkit-appearance: none; }
+input:focus { border-color: var(--brand); outline: none; background: #1a1a1a; }
+
+.inline .cap{ display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:14px; color:var(--muted); }
+.cap{ white-space:nowrap; }
+.cap .prev-val{ color:var(--brand); font-size:16px; }
+
+.btn{ appearance:none; border:1px solid #333; background:#222; color:#fff; padding:9px 12px; border-radius:12px; font-size:16px; text-align:center; }
+.btn.primary{ background:var(--brand); color:#000; border-color:var(--brand); }
+.foot{ display:flex; gap:8px; flex-wrap:wrap; }
+.section{ margin-top:6px; padding-top:6px; border-top:1px dashed #333; }
+.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; color:var(--fg); }
+#resultCard{ font-size:22px; }
+#res_header{ font-size:1.2em; }
+#res_lines{ font-size:1.15em; line-height:1.55; }
+.toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:16px; background:#222; border:1px solid #333; color:#fff; padding:10px 14px; border-radius:10px; z-index:999; }
+
+.tire-list{ display:grid; gap:10px; margin-top:10px; }
+.tire-row{ display:grid; grid-template-columns: 1fr 1fr 1fr 48px; gap:10px; align-items:end; }
+.lab{ font-weight:700; text-align:right; color:var(--muted); padding-bottom:4px; }
+.inline{ display:grid; gap:2px; }
+
+/* --- カスタムテンキー用 --- */
+.keypad-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 215px;
+  background: transparent;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  pointer-events: none;
+}
+.keypad-container.show {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.keypad-grid {
+  width: 75%;
+  height: 100%;
+  background: var(--kb-bg);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 6px;
+  padding: 6px;
+  border-top: 1px solid #444;
+}
+.key {
+  appearance: none;
+  border: none;
+  background: #333;
+  color: #fff;
+  font-size: 22px;
+  font-weight: bold;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  touch-action: manipulation;
+  border-radius: 6px;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.5);
+}
+.key:active { background: #555; }
+.btn-close { background: var(--brand); color: #000; }
+.btn-bs { background: #2a2a2a; font-size: 18px; }
+
+@media (max-width: 480px) {
+  input { padding: 8px 6px; font-size: 16px; }
+  .lab { font-size: 12px; padding-bottom: 6px; }
+}
