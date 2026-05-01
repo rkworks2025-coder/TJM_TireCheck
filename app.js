@@ -123,6 +123,7 @@
       });
       if(!res.ok) throw new Error('HTTP '+res.status);
       showToast('送信完了');
+      setTimeout(() => { toast.textContent = 'ブラウザの戻るか右スワイプ'; toast.hidden = false; }, 2800);
       const pf = gv('[name="plate_full"]');
       if (pf) localStorage.setItem('junkai:tire_completed_plate', pf);
     }catch(err){ 
@@ -379,7 +380,7 @@
         await postToSheet();
       });
     }
-    if(backBtn) backBtn.addEventListener('click', () => { resultCard.style.display = 'none'; form.style.display = 'block'; window.scrollTo({top:0}); });
+    if(backBtn) backBtn.addEventListener('click', () => { toast.hidden = true; resultCard.style.display = 'none'; form.style.display = 'block'; window.scrollTo({top:0}); });
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init, {once:true});
