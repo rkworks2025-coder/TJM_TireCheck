@@ -1,7 +1,7 @@
 (() => {
   const SHEETS_URL = window.SHEETS_URL || '';
   const SHEETS_KEY = window.SHEETS_KEY || '';
-  const GITHUB_IMG_API = "https://api.github.com/repos/rkworks2025-coder/work/contents/img";
+  const GITHUB_IMG_API = "https://api.github.com/repos/rkworks2025-coder/TJM_work/contents/img";
 
   let isSingleMode = false;
   let currentFocusInput = null;
