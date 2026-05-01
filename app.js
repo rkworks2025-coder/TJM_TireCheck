@@ -149,9 +149,21 @@
     return obj;
   }
 
+  // ★ 修正箇所 ★
+  // 旧: new Date(Date.now() + 9*60*60000) でUTCオフセットを手動計算し、
+  //     get系メソッド（ローカルタイム）で取り出していたため JST環境では+18h のズレが生じていた。
+  // 新: toLocaleString で Asia/Tokyo を明示指定し、そこから各フィールドを取り出す。
   function timestampForSheet(){
-    const jst = new Date(Date.now() + 9 * 60 * 60000);
-    return `${jst.getFullYear()}/${String(jst.getMonth() + 1).padStart(2,'0')}/${String(jst.getDate()).padStart(2,'0')} ${jst.getHours()}:${String(jst.getMinutes()).padStart(2,'0')}:${String(jst.getSeconds()).padStart(2,'0')}`;
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    }).formatToParts(now);
+    const p = {};
+    parts.forEach(({ type, value }) => { p[type] = value; });
+    return `${p.year}/${p.month}/${p.day} ${p.hour}:${p.minute}:${p.second}`;
   }
 
   function applyUrl(){
