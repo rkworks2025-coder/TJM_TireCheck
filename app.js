@@ -2,8 +2,8 @@
   const SHEETS_URL = window.SHEETS_URL || '';
   const SHEETS_KEY = window.SHEETS_KEY || '';
   const GITHUB_IMG_API = "https://api.github.com/repos/rkworks2025-coder/TJM_work/contents/img";
-  // 送信(POST)がハングしたままトーストが出ない事象への対策：
-  // 一定時間で強制的にタイムアウトさせ、必ず何らかのトーストを表示する
+  // 送信(POST)の応答が遅いままトーストが出ない事象への対策：
+  // 一定時間で「応答待ち」の表示に切り替える（実際の通信は中断しない）
   const SUBMIT_TIMEOUT_MS = 15000;
 
   let isSingleMode = false;
@@ -117,36 +117,42 @@
     if(!SHEETS_URL){ showToast('送信先未設定'); throw new Error('SHEETS_URL is not defined'); }
     const payload = collectPayload();
     if (resendBtn) resendBtn.style.display = 'none';
-    // タイムアウト対策：AbortControllerで一定時間経過後に強制中断し、
-    // fetchが解決も失敗もせずハングし続ける（＝トーストが永久に出ない）状態を防ぐ
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), SUBMIT_TIMEOUT_MS);
+
+    const body = new URLSearchParams();
+    body.set('key', SHEETS_KEY);
+    body.set('json', JSON.stringify(payload));
+
+    // ソフトタイムアウト：実際の通信(fetch)は中断しない。
+    // GAS側の処理に時間がかかっているだけで、待てば正常に保存が完了するケースがあるため、
+    // AbortControllerで強制中断すると保存自体が失われてしまう。
+    // ここでは一定時間経過後にUI表示だけを切り替え、裏では元のリクエストの完了を待ち続ける。
+    let settled = false;
+    const softTimer = setTimeout(() => {
+      if (!settled) {
+        showToast('応答に時間がかかっています…（送信は継続中）');
+        if (resendBtn) resendBtn.style.display = 'block';
+      }
+    }, SUBMIT_TIMEOUT_MS);
+
     try{
-      const body = new URLSearchParams();
-      body.set('key', SHEETS_KEY);
-      body.set('json', JSON.stringify(payload));
       const res = await fetch(SHEETS_URL, {
         method:'POST',
         headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
-        body,
-        signal: ctl.signal
+        body
       });
-      clearTimeout(timer);
+      settled = true;
+      clearTimeout(softTimer);
       if(!res.ok) throw new Error('HTTP '+res.status);
       showToast('送信完了');
       setTimeout(() => { toast.textContent = 'ブラウザの戻るか右スワイプ'; toast.hidden = false; }, 2800);
+      if (resendBtn) resendBtn.style.display = 'none';
       const pf = gv('[name="plate_full"]');
       if (pf) localStorage.setItem('junkai:tire_completed_plate', pf);
     }catch(err){ 
-      clearTimeout(timer);
+      settled = true;
+      clearTimeout(softTimer);
       console.error(err); 
-      if (err.name === 'AbortError') {
-        // タイムアウト時：GAS側で実際には保存が完了している可能性もあるため、
-        // ここでは自動リトライせず、手動の再送信ボタンを出すに留める
-        showToast('応答なし（タイムアウト）。再送信で確認してください');
-      } else {
-        showToast('送信失敗');
-      }
+      showToast('送信失敗');
       if (resendBtn) resendBtn.style.display = 'block';
       throw err;
     }
