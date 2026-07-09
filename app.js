@@ -2,6 +2,9 @@
   const SHEETS_URL = window.SHEETS_URL || '';
   const SHEETS_KEY = window.SHEETS_KEY || '';
   const GITHUB_IMG_API = "https://api.github.com/repos/rkworks2025-coder/TJM_work/contents/img";
+  // 送信(POST)がハングしたままトーストが出ない事象への対策：
+  // 一定時間で強制的にタイムアウトさせ、必ず何らかのトーストを表示する
+  const SUBMIT_TIMEOUT_MS = 15000;
 
   let isSingleMode = false;
   let currentFocusInput = null;
@@ -15,6 +18,7 @@
   const resHeader  = document.getElementById('res_header');
   const resLines   = document.getElementById('res_lines');
   const backBtn    = document.getElementById('backBtn');
+  const resendBtn  = document.getElementById('resendBtn');
   const keypad = document.getElementById('customKeypad');
   const mainWrap = document.getElementById('mainWrap');
 
@@ -112,6 +116,11 @@
   async function postToSheet(){
     if(!SHEETS_URL){ showToast('送信先未設定'); throw new Error('SHEETS_URL is not defined'); }
     const payload = collectPayload();
+    if (resendBtn) resendBtn.style.display = 'none';
+    // タイムアウト対策：AbortControllerで一定時間経過後に強制中断し、
+    // fetchが解決も失敗もせずハングし続ける（＝トーストが永久に出ない）状態を防ぐ
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), SUBMIT_TIMEOUT_MS);
     try{
       const body = new URLSearchParams();
       body.set('key', SHEETS_KEY);
@@ -119,16 +128,26 @@
       const res = await fetch(SHEETS_URL, {
         method:'POST',
         headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
-        body
+        body,
+        signal: ctl.signal
       });
+      clearTimeout(timer);
       if(!res.ok) throw new Error('HTTP '+res.status);
       showToast('送信完了');
       setTimeout(() => { toast.textContent = 'ブラウザの戻るか右スワイプ'; toast.hidden = false; }, 2800);
       const pf = gv('[name="plate_full"]');
       if (pf) localStorage.setItem('junkai:tire_completed_plate', pf);
     }catch(err){ 
+      clearTimeout(timer);
       console.error(err); 
-      showToast('送信失敗'); 
+      if (err.name === 'AbortError') {
+        // タイムアウト時：GAS側で実際には保存が完了している可能性もあるため、
+        // ここでは自動リトライせず、手動の再送信ボタンを出すに留める
+        showToast('応答なし（タイムアウト）。再送信で確認してください');
+      } else {
+        showToast('送信失敗');
+      }
+      if (resendBtn) resendBtn.style.display = 'block';
       throw err;
     }
   }
@@ -380,7 +399,8 @@
         await postToSheet();
       });
     }
-    if(backBtn) backBtn.addEventListener('click', () => { toast.hidden = true; resultCard.style.display = 'none'; form.style.display = 'block'; window.scrollTo({top:0}); });
+    if(backBtn) backBtn.addEventListener('click', () => { toast.hidden = true; resultCard.style.display = 'none'; form.style.display = 'block'; window.scrollTo({top:0}); if(resendBtn) resendBtn.style.display = 'none'; });
+    if(resendBtn) resendBtn.addEventListener('click', () => { postToSheet(); });
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init, {once:true});
