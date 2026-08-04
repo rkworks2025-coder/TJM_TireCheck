@@ -321,6 +321,13 @@
 
   async function preloadWorkSplash() {
     try {
+      // 1日1回だけ先読みすれば十分なため、同日分のキャッシュがあれば再取得しない
+      // （前回データ取得と無関係に毎回GitHub APIを叩いていたのを抑制する対策）
+      const cachedUrl  = localStorage.getItem("junkai:preloaded_splash_url");
+      const cachedDate = localStorage.getItem("junkai:preloaded_splash_date");
+      const today = new Date().toDateString();
+      if (cachedUrl && cachedDate === today) return;
+
       const res = await fetch(GITHUB_IMG_API);
       if (!res.ok) throw new Error("Image API fetch failed");
       const files = await res.json();
@@ -328,6 +335,7 @@
       if (images.length > 0) {
         const selectedUrl = images[Math.floor(Math.random() * images.length)];
         localStorage.setItem("junkai:preloaded_splash_url", selectedUrl);
+        localStorage.setItem("junkai:preloaded_splash_date", today);
         const img = new Image();
         img.src = selectedUrl;
       }
@@ -347,7 +355,8 @@
 
   function init(){
     applyUrl(); showPrevPlaceholders(); fetchSheetData(); wire(); setupAutoAdvance(); setupCustomKeypad();
-    preloadWorkSplash(); 
+    // 前回データ取得(fetchSheetData)と回線を奪い合わないよう、先読みは少し遅らせて開始する
+    setTimeout(preloadWorkSplash, 4000);
     if(form){
       form.addEventListener('submit', async ev => {
         ev.preventDefault();
