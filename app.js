@@ -85,6 +85,72 @@
     });
   }
 
+  // 「タイヤ別入力」タイトル横の前回測定日表示（GASの timestamp_iso 列由来）
+  function applyPrevDate(raw){
+    const el = document.getElementById('prevDate');
+    if(!el) return;
+    if(!raw){ el.textContent = ''; return; }
+    // GAS側で "yyyy/MM/dd HH:mm:ss"（Asia/Tokyo）形式の文字列として返る想定
+    const d = new Date(String(raw).trim());
+    if(isNaN(d.getTime())){ el.textContent = ''; return; }
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    el.textContent = `前回測定日 ${y}/${m}/${day}`;
+  }
+
+  // ===== メモリ解放（手動トリガー） =====
+  // メモリークリーナーアプリが行っているのと同じ発想で、意図的に
+  // 大きなメモリを確保することでiOS側に「フォアグラウンドのこの
+  // ページのためにメモリが必要」と判断させ、バックグラウンドの
+  // 不要プロセスをOS側に解放させる。効果はiOS側の裁量に委ねられる
+  // ベストエフォートであり、確実な解放を保証するものではない。
+  //
+  // ページが実際にJetsamで落ちれば真っ白になって再読み込みされ、
+  // その時点でこのJS自体が実行不能になるため後続コードは走らない。
+  // つまり「この関数が最後まで実行できてしまった」ことそのものが
+  // 「今回は自分は落ちなかった＝解放できたか不明」を意味する。
+  let memToastEl = null;
+  function showMemToast(msg) {
+    if (!memToastEl) {
+      memToastEl = document.createElement("div");
+      memToastEl.className = "mem-toast";
+      document.body.appendChild(memToastEl);
+    }
+    memToastEl.textContent = msg;
+    memToastEl.classList.remove("show");
+    void memToastEl.offsetWidth;
+    memToastEl.classList.add("show");
+    clearTimeout(memToastEl._hideTimer);
+    memToastEl._hideTimer = setTimeout(() => memToastEl.classList.remove("show"), 2000);
+  }
+
+  function releaseMemory() {
+    showMemToast("メモリを解放中…");
+    setTimeout(() => {
+      const CHUNK_BYTES = 8 * 1024 * 1024;  // 8MBずつ確保
+      const HARD_CAP_MB = 3000;             // 実質無制限に近い上限
+      const chunks = [];
+      let allocated = 0;
+      let hitOwnLimit = false;
+      try {
+        while (allocated < HARD_CAP_MB * 1024 * 1024) {
+          const buf = new Uint8Array(CHUNK_BYTES);
+          for (let i = 0; i < buf.length; i += 4096) buf[i] = 1;
+          chunks.push(buf);
+          allocated += CHUNK_BYTES;
+          showMemToast(`メモリ確保中… ${Math.round(allocated / 1024 / 1024)}MB`);
+        }
+      } catch (e) {
+        hitOwnLimit = true;
+      }
+      chunks.length = 0;
+      showMemToast(hitOwnLimit
+        ? `確保上限(約${Math.round(allocated / 1024 / 1024)}MB)到達・解放は未確認`
+        : "確保完了・解放は未確認");
+    }, 50);
+  }
+
   async function fetchSheetData(){
     const st = gv('[name="station"]');
     const md = gv('[name="model"]');
@@ -107,6 +173,7 @@
       if(data.std_f && f && !f.value) f.value = data.std_f;
       if(data.std_r && r && !r.value) r.value = data.std_r;
       applyPrev(data.prev || {});
+      applyPrevDate(data.prev_timestamp);
     }catch(err){ 
       console.error('fetchSheetData failed', err);
       throw err;
@@ -209,6 +276,8 @@
         el.addEventListener('input',  h, {passive:true});
       });
     });
+    const memBtn = document.getElementById('memReleaseBtn');
+    if (memBtn) memBtn.addEventListener('click', releaseMemory);
   }
 
   const AUTO_SEQUENCE = ['std_f','std_r','tread_rf','pre_rf','dot_rf','tread_lf','pre_lf','dot_lf','tread_lr','pre_lr','dot_lr','tread_rr','pre_rr','dot_rr','submitBtn'];

@@ -11,7 +11,7 @@
     <form id="form" class="card" onsubmit="return false;">
       <div class="section-head">
         <p class="title">車両情報</p>
-        <div class="app-info">タイヤ点検 <span class="ver-text">V9K</span></div>
+        <div class="app-info">タイヤ点検 <span class="ver-text">V9K</span> <button type="button" id="memReleaseBtn" class="mem-release-btn">メモリ解放</button></div>
       </div>
       <div class="veh-rows">
         <div><label>ステーション名 <input type="text" name="station" required></label></div>
@@ -25,7 +25,7 @@
         </div>
       </div>
 
-      <p class="title">タイヤ別入力</p>
+      <p class="title">タイヤ別入力 <span class="prev-date" id="prevDate"></span></p>
       <div class="tire-list">
         <div class="tire-row">
           <div class="inline">
