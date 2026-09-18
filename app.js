@@ -151,7 +151,9 @@
     }, 50);
   }
 
-  async function fetchSheetData(){
+  // ▼▼▼ 修正箇所：タイムアウト＋自動リトライ（最大2回）＋失敗時トースト通知を追加 ▼▼▼
+  // 読み取り専用(GET)なので、保存処理と違いabort/retryしても二重書き込み等の副作用はない
+  async function fetchSheetData(retryCount = 0){
     const st = gv('[name="station"]');
     const md = gv('[name="model"]');
     const pf = gv('[name="plate_full"]');
@@ -164,9 +166,13 @@
     if(md) u.searchParams.set('model', md);
     if(pf) u.searchParams.set('plate_full', pf);
     u.searchParams.set('ts', Date.now());
-    
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒でタイムアウト
+
     try{
-      const res = await fetch(u.toString(), { cache:'no-store' });
+      const res = await fetch(u.toString(), { cache:'no-store', signal: controller.signal });
+      clearTimeout(timeoutId);
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data = await res.json();
       const f = qs('[name="std_f"]'); const r = qs('[name="std_r"]');
@@ -174,11 +180,17 @@
       if(data.std_r && r && !r.value) r.value = data.std_r;
       applyPrev(data.prev || {});
       applyPrevDate(data.prev_timestamp);
-    }catch(err){ 
-      console.error('fetchSheetData failed', err);
-      throw err;
+    }catch(err){
+      clearTimeout(timeoutId);
+      console.error('fetchSheetData failed (attempt ' + (retryCount + 1) + ')', err);
+      if(retryCount < 2){
+        setTimeout(() => fetchSheetData(retryCount + 1), 1000);
+      } else {
+        showToast('前回値の取得に失敗しました');
+      }
     }
   }
+  // ▲▲▲ 修正ここまで ▲▲▲
 
   async function postToSheet(){
     if(!SHEETS_URL){ showToast('送信先未設定'); throw new Error('SHEETS_URL is not defined'); }
