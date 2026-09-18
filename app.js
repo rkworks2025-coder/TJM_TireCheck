@@ -99,6 +99,28 @@
     el.textContent = `前回測定日 ${y}/${m}/${day}`;
   }
 
+  // ▼▼▼ 追加：前回値のローカルキャッシュ（通信を待たずに即表示するため） ▼▼▼
+  const PREV_CACHE_PREFIX = 'junkai:tire_prev_cache:';
+  function readPrevCache(plateFull){
+    if(!plateFull) return null;
+    try{
+      const raw = localStorage.getItem(PREV_CACHE_PREFIX + plateFull);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+  function writePrevCache(plateFull, data){
+    if(!plateFull) return;
+    try{ localStorage.setItem(PREV_CACHE_PREFIX + plateFull, JSON.stringify(data)); }catch(e){}
+  }
+  function applyFetchedData(data){
+    const f = qs('[name="std_f"]'); const r = qs('[name="std_r"]');
+    if(data.std_f && f && !f.value) f.value = data.std_f;
+    if(data.std_r && r && !r.value) r.value = data.std_r;
+    applyPrev(data.prev || {});
+    applyPrevDate(data.prev_timestamp);
+  }
+  // ▲▲▲ 追加ここまで ▲▲▲
+
   // ===== メモリ解放（手動トリガー） =====
   // メモリークリーナーアプリが行っているのと同じ発想で、意図的に
   // 大きなメモリを確保することでiOS側に「フォアグラウンドのこの
@@ -151,13 +173,21 @@
     }, 50);
   }
 
-  // ▼▼▼ 修正箇所：タイムアウト＋自動リトライ（最大2回）＋失敗時トースト通知を追加 ▼▼▼
+  // ▼▼▼ 修正箇所：タイムアウト＋自動リトライ（最大2回）＋ローカルキャッシュ即時表示＋失敗時トースト通知 ▼▼▼
   // 読み取り専用(GET)なので、保存処理と違いabort/retryしても二重書き込み等の副作用はない
   async function fetchSheetData(retryCount = 0){
     const st = gv('[name="station"]');
     const md = gv('[name="model"]');
     const pf = gv('[name="plate_full"]');
     if(!(st||md||pf) || !SHEETS_URL) return;
+
+    // 初回呼び出し時のみ：ローカルキャッシュがあれば通信を待たず即座に反映
+    let hadCache = false;
+    if (retryCount === 0 && pf) {
+      const cached = readPrevCache(pf);
+      if (cached) { applyFetchedData(cached); hadCache = true; }
+    }
+
     const u = new URL(SHEETS_URL);
     u.searchParams.set('key', SHEETS_KEY);
     u.searchParams.set('op','read');
@@ -175,17 +205,14 @@
       clearTimeout(timeoutId);
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data = await res.json();
-      const f = qs('[name="std_f"]'); const r = qs('[name="std_r"]');
-      if(data.std_f && f && !f.value) f.value = data.std_f;
-      if(data.std_r && r && !r.value) r.value = data.std_r;
-      applyPrev(data.prev || {});
-      applyPrevDate(data.prev_timestamp);
+      applyFetchedData(data);
+      if (pf) writePrevCache(pf, data);
     }catch(err){
       clearTimeout(timeoutId);
       console.error('fetchSheetData failed (attempt ' + (retryCount + 1) + ')', err);
       if(retryCount < 2){
         setTimeout(() => fetchSheetData(retryCount + 1), 1000);
-      } else {
+      } else if (!hadCache) {
         showToast('前回値の取得に失敗しました');
       }
     }
@@ -500,6 +527,30 @@
     }
   }
 
+  // ▼▼▼ 追加：前回値ローカルキャッシュの一括プリロード（1日1回のみ） ▼▼▼
+  async function prewarmPrevCache() {
+    if (!SHEETS_URL) return;
+    try {
+      const lastDate = localStorage.getItem('junkai:prev_cache_prewarmed_date');
+      const today = new Date().toDateString();
+      if (lastDate === today) return; // 1日1回で十分（毎回全件取得すると回線が無駄）
+
+      const u = new URL(SHEETS_URL);
+      u.searchParams.set('key', SHEETS_KEY);
+      u.searchParams.set('op', 'prev_all');
+      u.searchParams.set('ts', Date.now());
+      const res = await fetch(u.toString(), { cache:'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!data.ok || !Array.isArray(data.items)) return;
+      data.items.forEach(item => { if (item.plate_full) writePrevCache(item.plate_full, item); });
+      localStorage.setItem('junkai:prev_cache_prewarmed_date', today);
+    } catch(e) {
+      console.warn('prewarmPrevCache failed', e);
+    }
+  }
+  // ▲▲▲ 追加ここまで ▲▲▲
+
   // 簡易的な現在の週番号計算 (ISO準拠) - 以前のロジックを完全復元
   const getWeek = (date) => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -513,6 +564,7 @@
     applyUrl(); showPrevPlaceholders(); fetchSheetData(); wire(); setupAutoAdvance(); setupCustomKeypad();
     // 前回データ取得(fetchSheetData)と回線を奪い合わないよう、先読みは少し遅らせて開始する
     setTimeout(preloadWorkSplash, 4000);
+    setTimeout(prewarmPrevCache, 1500);
     if(form){
       form.addEventListener('submit', async ev => {
         ev.preventDefault();
