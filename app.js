@@ -168,7 +168,7 @@
     u.searchParams.set('ts', Date.now());
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒でタイムアウト
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒でタイムアウト（現場4G回線の往復遅延を考慮）
 
     try{
       const res = await fetch(u.toString(), { cache:'no-store', signal: controller.signal });
