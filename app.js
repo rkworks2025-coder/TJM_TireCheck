@@ -192,19 +192,74 @@
   }
   // ▲▲▲ 修正ここまで ▲▲▲
 
+  // ▼▼▼ 追加：多重送信対策（同一entry_idの使い回し・保存確認） ▼▼▼
+  let currentEntryRequestId = null;
+
+  function genRequestId(){
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function getOrCreateEntryRequestId(){
+    if (!currentEntryRequestId) currentEntryRequestId = genRequestId();
+    return currentEntryRequestId;
+  }
+
+  // GASにentry_idが保存済みかを確認する（バックグラウンド復帰時や送信失敗時の再確認用）
+  async function checkEntrySaved(requestId){
+    if (!requestId || !SHEETS_URL) return false;
+    try{
+      const u = new URL(SHEETS_URL);
+      u.searchParams.set('key', SHEETS_KEY);
+      u.searchParams.set('op', 'check_entry');
+      u.searchParams.set('entry_id', requestId);
+      u.searchParams.set('ts', Date.now());
+      const res = await fetch(u.toString(), { cache:'no-store' });
+      if(!res.ok) return false;
+      const data = await res.json();
+      return !!(data && data.saved);
+    }catch(e){
+      console.error('checkEntrySaved failed', e);
+      return false;
+    }
+  }
+
+  // ページがバックグラウンドから復帰した際、フリーズしていたfetch/タイマーの再開を待たず
+  // 即座に保存有無をGASへ確認する（スワイプで離れると送信完了/失敗の通知が止まる事象への対策）
+  async function handleVisibilityChange(){
+    if (document.visibilityState !== 'visible' || !currentEntryRequestId) return;
+    const rid = currentEntryRequestId;
+    const saved = await checkEntrySaved(rid);
+    if (saved) {
+      currentEntryRequestId = null;
+      showToast('送信完了');
+      setTimeout(() => { toast.textContent = 'ブラウザの戻るか右スワイプ'; toast.hidden = false; }, 2800);
+      if (resendBtn) resendBtn.style.display = 'none';
+      const pf = gv('[name="plate_full"]');
+      if (pf) localStorage.setItem('junkai:tire_completed_plate', pf);
+    } else {
+      showToast('送信失敗');
+      if (resendBtn) resendBtn.style.display = 'block';
+    }
+  }
+  // ▲▲▲ 追加ここまで ▲▲▲
+
+  // ▼▼▼ 修正箇所：ハードタイムアウト(30秒)＋keepalive＋保存確認による多重送信対策 ▼▼▼
   async function postToSheet(){
     if(!SHEETS_URL){ showToast('送信先未設定'); throw new Error('SHEETS_URL is not defined'); }
     const payload = collectPayload();
+    const rid = payload.entry_id;
     if (resendBtn) resendBtn.style.display = 'none';
 
     const body = new URLSearchParams();
     body.set('key', SHEETS_KEY);
     body.set('json', JSON.stringify(payload));
 
-    // ソフトタイムアウト：実際の通信(fetch)は中断しない。
-    // GAS側の処理に時間がかかっているだけで、待てば正常に保存が完了するケースがあるため、
-    // AbortControllerで強制中断すると保存自体が失われてしまう。
-    // ここでは一定時間経過後にUI表示だけを切り替え、裏では元のリクエストの完了を待ち続ける。
+    // 15秒経過時点ではUI表示のみ切り替え（通信は継続）。
+    // 30秒でハードタイムアウトし、AbortControllerで打ち切る。
+    // keepalive:trueにより、ページ離脱(スワイプ等)後もブラウザ側で送信を継続させる。
     let settled = false;
     const softTimer = setTimeout(() => {
       if (!settled) {
@@ -212,16 +267,22 @@
         if (resendBtn) resendBtn.style.display = 'block';
       }
     }, SUBMIT_TIMEOUT_MS);
+    const controller = new AbortController();
+    const hardTimer = setTimeout(() => controller.abort(), 30000);
 
     try{
       const res = await fetch(SHEETS_URL, {
         method:'POST',
         headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
-        body
+        body,
+        keepalive: true,
+        signal: controller.signal
       });
       settled = true;
       clearTimeout(softTimer);
+      clearTimeout(hardTimer);
       if(!res.ok) throw new Error('HTTP '+res.status);
+      currentEntryRequestId = null;
       showToast('送信完了');
       setTimeout(() => { toast.textContent = 'ブラウザの戻るか右スワイプ'; toast.hidden = false; }, 2800);
       if (resendBtn) resendBtn.style.display = 'none';
@@ -230,12 +291,25 @@
     }catch(err){ 
       settled = true;
       clearTimeout(softTimer);
+      clearTimeout(hardTimer);
       console.error(err); 
+      // 通信エラーに見えても、GAS側では既に保存が完了している場合があるため確認する
+      const saved = await checkEntrySaved(rid);
+      if (saved) {
+        currentEntryRequestId = null;
+        showToast('送信完了');
+        setTimeout(() => { toast.textContent = 'ブラウザの戻るか右スワイプ'; toast.hidden = false; }, 2800);
+        if (resendBtn) resendBtn.style.display = 'none';
+        const pf = gv('[name="plate_full"]');
+        if (pf) localStorage.setItem('junkai:tire_completed_plate', pf);
+        return;
+      }
       showToast('送信失敗');
       if (resendBtn) resendBtn.style.display = 'block';
       throw err;
     }
   }
+  // ▲▲▲ 修正ここまで ▲▲▲
 
   function collectPayload(){
     const obj = {
@@ -251,6 +325,7 @@
       operator: ''
     };
     obj.timestamp_iso = timestampForSheet();
+    obj.entry_id = getOrCreateEntryRequestId();
     return obj;
   }
 
@@ -497,6 +572,7 @@
     }
     if(backBtn) backBtn.addEventListener('click', () => { toast.hidden = true; resultCard.style.display = 'none'; form.style.display = 'block'; window.scrollTo({top:0}); if(resendBtn) resendBtn.style.display = 'none'; });
     if(resendBtn) resendBtn.addEventListener('click', () => { postToSheet(); });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init, {once:true});
